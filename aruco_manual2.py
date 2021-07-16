@@ -31,64 +31,75 @@ def ordenar_puntos(puntos):
 
     return [x1_order[0], x1_order[1], x2_order[0], x2_order[1]]
 
-img = cv2.imread('panel3.jpeg')
-originalImg = cv2.imread('panel3.jpeg')
-blur = cv2.GaussianBlur(img, (7,7), 0)
-lower_black = np.array([0,0,0])
-upper_black = np.array([55,55,55])    
-mask = cv2.inRange(blur, lower_black, upper_black)
+# img = cv2.imread('panel3.jpeg')
 
-canny = cv2.Canny(mask, 10, 150)
-canny = cv2.dilate(canny, None, iterations=1)
+cap = cv2.VideoCapture(0)
 
-conts = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]
-conts = sorted(conts, key=cv2.contourArea, reverse=True)[:9]
-ars = []
-for c in conts:
-    epsilon = 0.01* cv2.arcLength(c, True)
-    approx = cv2.approxPolyDP(c, epsilon, True)
+while True:
+    _, img = cap.read()
 
-    if len(approx) == 4:
-        cv2.drawContours(img, [approx], 0, (0,255,255), 2)
+    print(type(img))
+    # originalImg = cv2.imread('panel3.jpeg')
+    originalImg = img.copy()
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (7,7), 0)
+    _, mask = cv2.threshold(blur,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 
-        puntos = ordenar_puntos(approx)
+    canny = cv2.Canny(mask, 10, 150)
+    canny = cv2.dilate(canny, None, iterations=1)
 
-        pts1 = np.float32(puntos)
-        pts2 = np.float32([[0,0], [270,0], [0,310], [270,310]]) # Define el tamaño de la imagen de salida
+    conts = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]
+    conts = sorted(conts, key=cv2.contourArea, reverse=True)[:9]
+    ars = []
+    for c in conts:
+        epsilon = 0.01* cv2.arcLength(c, True)
+        approx = cv2.approxPolyDP(c, epsilon, True)
 
-        Mat = cv2.getPerspectiveTransform(pts1,pts2)
-        dst = cv2.warpPerspective(originalImg, Mat, (270,310))
+        if len(approx) == 4:
+            cv2.drawContours(img, [approx], 0, (0,255,255), 2)
 
-        _, image_result =   cv2.threshold(dst,127,255,cv2.THRESH_BINARY)
+            puntos = ordenar_puntos(approx)
 
-        grid = ig.createGrid(image_result,7,7)
+            pts1 = np.float32(puntos)
+            pts2 = np.float32([[0,0], [270,0], [0,310], [270,310]]) # Define el tamaño de la imagen de salida
 
-        ar_id = ""
+            Mat = cv2.getPerspectiveTransform(pts1,pts2)
+            dst = cv2.warpPerspective(originalImg, Mat, (270,310))
+            gray = cv2.cvtColor(dst, cv2.COLOR_BGR2GRAY)
+            _, image_result =   cv2.threshold(gray,127,255,cv2.THRESH_BINARY)
 
-        for row in grid[0]:
-            for pixel in row:
+            grid = ig.createGrid(image_result,7,7)
 
-                pixel = pixel[5:-5,5:-5,0]
+            ar_id = ""
 
-                tot = len(pixel)*len(pixel[0])
-                count = np.sum(np.array(pixel) >= 127)
-                prop = count/tot
-                if prop >= 0.5:
-                    ar_id += "1"
-                else:
-                    ar_id += "0"
-                print(prop)
-        
-            ar_id += '\n'
+            for row in grid[0]:
+                for pixel in row:
 
-        print(ar_id)
-        ars.append((grid[0],grid[1],dst,ar_id))
+                    pixel = pixel[5:-5,5:-5]
 
-cv2.imshow('img', img)
-cv2.imshow('blur', blur)
-cv2.imshow('mask',mask)
-cv2.imshow('canny', canny)
-for i in range(len(ars)):
-    cv2.imshow(f'{i}', ars[i][1])
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+                    tot = len(pixel)*len(pixel[0])
+                    count = np.sum(np.array(pixel) >= 127)
+                    prop = count/tot
+                    if prop >= 0.5:
+                        ar_id += "1"
+                    else:
+                        ar_id += "0"
+                    print(prop)
+            
+                ar_id += '\n'
+
+            print(ar_id)
+            ars.append((grid[0],grid[1],dst,ar_id))
+
+    cv2.imshow('img', img)
+    # cv2.imshow('blur', blur)
+    cv2.imshow('mask',mask)
+    # cv2.imshow('canny', canny)
+    for i in range(len(ars)):
+        cv2.imshow(f'{i}', ars[i][1])
+
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord('q'):
+        cap.release()
+        cv2.destroyAllWindows()
+        break
